@@ -17,10 +17,11 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 def get_db():
     return pymysql.connect(
-        host="localhost",
+        host="maglev.proxy.rlwy.net",
+        port=54682,
         user="root",
-        password="",
-        database="sales_dss",
+        password="PSwLAvsFsjMOExfoKnOdvzcRPbqqXoyp",
+        database="railway",
         cursorclass=pymysql.cursors.DictCursor
     )
 
