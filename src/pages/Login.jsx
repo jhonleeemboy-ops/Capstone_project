@@ -1,5 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
+import { API_URL } from "../config";
 
 export default function Login({ onLogin }) {
   const [email, setEmail] = useState("");
@@ -11,7 +12,7 @@ export default function Login({ onLogin }) {
     if (!email || !password) return;
     setLoading(true);
     setError("");
-    axios.post("http://127.0.0.1:5000/login", { email, password })
+    axios.post(`${API_URL}/login`, { email, password })
       .then(res => {
         localStorage.setItem("user", JSON.stringify(res.data.user));
         onLogin(res.data.user);
