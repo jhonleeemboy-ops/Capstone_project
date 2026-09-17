@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StoreWise</string>
+    <string name="title_activity_main">StoreWise</string>
+    <string name="package_name">com.storewise.app</string>
+    <string name="custom_url_scheme">com.storewise.app</string>
+</resources>

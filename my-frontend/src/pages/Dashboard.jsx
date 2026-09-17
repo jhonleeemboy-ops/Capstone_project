@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_URL } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faMoneyBillWave,
@@ -11,14 +13,15 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 const PRIORITY_STYLES = {
-  urgent: { label: "URGENT", badgeBg: "#ef4444", border: "#ef4444", accent: "#ef4444" },
-  soon: { label: "SOON", badgeBg: "#f97316", border: "#f97316", accent: "#f97316" },
-  monitor: { label: "MONITOR", badgeBg: "#eab308", border: "#eab308", accent: "#eab308" },
+  urgent: { label: "URGENT", badgeBg: "rgba(239, 68, 68, 0.2)", border: "#ef4444", accent: "#ef4444" },
+  soon: { label: "SOON", badgeBg: "rgba(249, 115, 22, 0.2)", border: "#f97316", accent: "#f97316" },
+  monitor: { label: "MONITOR", badgeBg: "rgba(234, 179, 8, 0.2)", border: "#eab308", accent: "#eab308" },
 };
 
 const PRIORITY_ORDER = ["urgent", "soon", "monitor"];
 
 export default function Dashboard({ user } = {}) {
+  const navigate = useNavigate();
   const [sales, setSales] = useState([]);
   const [inventory, setInventory] = useState([]);
   const [expiry, setExpiry] = useState([]);
@@ -26,13 +29,18 @@ export default function Dashboard({ user } = {}) {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [hoveredButton, setHoveredButton] = useState(null);
+  const [hoveredChartCard, setHoveredChartCard] = useState(null);
+  const [isExportHovered, setIsExportHovered] = useState(false);
+
   useEffect(() => {
     Promise.all([
-      axios.get("http://127.0.0.1:5000/sales"),
-      axios.get("http://127.0.0.1:5000/inventory"),
-      axios.get("http://127.0.0.1:5000/expiry"),
-      axios.get("http://127.0.0.1:5000/forecast").catch(() => null),
-      axios.get("http://127.0.0.1:5000/recommendations").catch(() => ({ data: [] })),
+      axios.get(`${API_URL}/sales`),
+      axios.get(`${API_URL}/inventory`),
+      axios.get(`${API_URL}/expiry`),
+      axios.get(`${API_URL}/forecast`).catch(() => null),
+      axios.get(`${API_URL}/recommendations`).catch(() => ({ data: [] })),
     ]).then(([s, inv, exp, f, rec]) => {
       setSales(s.data);
       setInventory(inv.data);
@@ -45,15 +53,11 @@ export default function Dashboard({ user } = {}) {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh" }}>
-        <p style={{ color: "#94a3b8", fontSize: 15 }}>Loading dashboard...</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "60vh", background: "#e4e7eb", width: "100%" }}>
+        <p style={{ color: "#64748b", fontSize: 15 }}>Loading dashboard...</p>
       </div>
     );
   }
-
-  // ---------------------------------
-  // KPI CARDS (unchanged logic)
-  // ---------------------------------
 
   const toDateKey = (d) => new Date(d).toISOString().slice(0, 10);
   const todayKey = toDateKey(new Date());
@@ -90,52 +94,51 @@ export default function Dashboard({ user } = {}) {
 
   const cards = [
     {
+      id: "sales",
       label: "Total Sales Today",
       value: `₱${totalToday.toLocaleString()}`,
       sub:
         percentChange === null
           ? `${salesToday.length} sale${salesToday.length === 1 ? "" : "s"} today`
           : `${percentChange >= 0 ? "+" : ""}${percentChange.toFixed(0)}% from yesterday`,
-      subColor: percentChange === null ? "#64748b" : percentChange >= 0 ? "#16a34a" : "#ef4444",
+      subColor: percentChange === null ? "#64748b" : percentChange >= 0 ? "#16a34a" : "#dc2626",
       icon: faMoneyBillWave,
-      iconBg: "#dcfce7",
       iconColor: "#16a34a",
+      route: "/sales",
     },
     {
+      id: "lowstock",
       label: "Low Stock Items",
       value: lowStockItems.length,
       sub: lowStockItems.length > 0 ? "Needs attention" : "All stocked",
       subColor: lowStockItems.length > 0 ? "#fff" : "#16a34a",
-      subBg: lowStockItems.length > 0 ? "#ef4444" : "transparent",
+      subBg: lowStockItems.length > 0 ? "#dc2626" : "transparent",
       icon: faBoxOpen,
-      iconBg: "#fee2e2",
-      iconColor: "#ef4444",
+      iconColor: "#dc2626",
+      route: "/inventory",
     },
     {
+      id: "expiring",
       label: "Expiring Soon",
       value: expiredItems.length + expiringSoon.length,
       sub: "Within 7 days",
       subColor: "#fff",
-      subBg: "#f97316",
+      subBg: "#ea580c",
       icon: faTriangleExclamation,
-      iconBg: "#ffedd5",
-      iconColor: "#f97316",
+      iconColor: "#ea580c",
+      route: "/expiry",
     },
     {
+      id: "forecast",
       label: "Last Forecast",
       value: lastForecastDate,
       sub: forecastTotal ? `₱${Math.round(forecastTotal).toLocaleString()} predicted` : "Predicted revenue",
       subColor: "#64748b",
       icon: faChartLine,
-      iconBg: "#e0f2fe",
       iconColor: "#0284c7",
+      route: "/forecast",
     },
   ];
-
-  // ---------------------------------
-  // RECOMMENDATIONS PANEL
-  // top item per priority bucket, matching the 3-card layout
-  // ---------------------------------
 
   const featuredRecs = PRIORITY_ORDER.map((priority) =>
     recommendations.find((r) => r.priority === priority)
@@ -145,6 +148,16 @@ export default function Dashboard({ user } = {}) {
     urgent: "Order Now",
     soon: "Apply",
     monitor: "View",
+  };
+
+  const handleActionClick = (rec) => {
+    if (rec.action.toLowerCase().includes("order") || rec.priority === "urgent") {
+      navigate("/pos");
+    } else if (rec.priority === "soon") {
+      navigate("/inventory");
+    } else {
+      navigate("/recommendations");
+    }
   };
 
   const handleExportCSV = () => {
@@ -165,10 +178,6 @@ export default function Dashboard({ user } = {}) {
     a.click();
     URL.revokeObjectURL(url);
   };
-
-  // ---------------------------------
-  // SALES TREND (last 30 days)
-  // ---------------------------------
 
   const days = [];
   for (let i = 29; i >= 0; i--) {
@@ -205,12 +214,7 @@ export default function Dashboard({ user } = {}) {
   });
 
   const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-
   const xTickIndices = [0, 5, 10, 15, 20, 25, 29].filter((i) => i < points.length);
-
-  // ---------------------------------
-  // RECENT TRANSACTIONS (grouped)
-  // ---------------------------------
 
   const groupsMap = {};
   sales.forEach((s) => {
@@ -241,78 +245,116 @@ export default function Dashboard({ user } = {}) {
         new Date(g.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
     }));
 
+  const lightGlassCardStyle = (isHovered) => ({
+    background: "linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(241, 245, 249, 0.95) 100%)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: isHovered ? "1px solid rgba(14, 116, 144, 0.4)" : "1px solid rgba(255, 255, 255, 0.9)",
+    borderRadius: 20,
+    padding: "1.25rem",
+    boxShadow: isHovered
+      ? "0 12px 32px rgba(14, 116, 144, 0.15), 0 2px 4px rgba(255, 255, 255, 0.5) inset"
+      : "0 8px 24px 0 rgba(31, 38, 135, 0.06), 0 2px 4px 0 rgba(255, 255, 255, 0.5) inset",
+    transform: isHovered ? "translateY(-3px)" : "translateY(0)",
+    transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+    cursor: "pointer",
+  });
+
+  const lightGlassIconBoxStyle = {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    background: "rgba(255, 255, 255, 0.8)",
+    border: "1px solid rgba(255, 255, 255, 0.9)",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.04)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
   return (
-    <div style={{ maxWidth: 1180 }}>
+    <div style={{
+      width: "100%",
+      color: "#1e293b",
+      fontFamily: "inherit",
+      padding: "1.5rem",
+      background: "#e4e7eb",
+      minHeight: "100vh",
+      boxSizing: "border-box",
+    }}>
       {/* Header */}
-      <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>
-        Dashboard
-      </h1>
-      <p style={{ color: "#64748b", fontSize: 14, marginBottom: "1.5rem" }}>
-        Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
-      </p>
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: "#0f172a",
+            marginBottom: 4,
+            letterSpacing: "-0.5px",
+          }}
+        >
+          Dashboard
+        </h1>
+        <p style={{ color: "#64748b", fontSize: 13, margin: 0 }}>
+          Welcome back{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+        </p>
+      </div>
 
       {/* KPI Cards */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 20,
           marginBottom: "1.5rem",
         }}
       >
-        {cards.map((c) => (
-          <div
-            key={c.label}
-            style={{
-              background: "#fff",
-              borderRadius: 14,
-              padding: "1.25rem",
-              boxShadow: "0 1px 4px rgba(0,0,0,0.07)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 10,
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <p style={{ fontSize: 13, color: "#64748b", margin: 0 }}>{c.label}</p>
-              <div
+        {cards.map((c) => {
+          const isHovered = hoveredCard === c.id;
+          return (
+            <div
+              key={c.id}
+              onClick={() => navigate(c.route)}
+              onMouseEnter={() => setHoveredCard(c.id)}
+              onMouseLeave={() => setHoveredCard(null)}
+              style={lightGlassCardStyle(isHovered)}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                <p style={{ fontSize: 13, color: "#64748b", margin: 0, fontWeight: 600 }}>{c.label}</p>
+                <div style={lightGlassIconBoxStyle}>
+                  <FontAwesomeIcon icon={c.icon} style={{ color: c.iconColor, width: 16, height: 16 }} />
+                </div>
+              </div>
+              <p style={{ fontSize: 28, fontWeight: 700, color: "#0f172a", margin: "0 0 8px 0" }}>{c.value}</p>
+              <span
                 style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: c.iconBg,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
+                  fontSize: 12,
+                  color: c.subColor,
+                  background: c.subBg || "transparent",
+                  padding: c.subBg ? "3px 10px" : 0,
+                  borderRadius: c.subBg ? 99 : 0,
+                  display: "inline-block",
+                  fontWeight: 600,
                 }}
               >
-                <FontAwesomeIcon icon={c.icon} style={{ color: c.iconColor, width: 16, height: 16 }} />
-              </div>
+                {c.sub}
+              </span>
             </div>
-            <p style={{ fontSize: 28, fontWeight: 700, color: "#0f172a", margin: 0 }}>{c.value}</p>
-            <span
-              style={{
-                fontSize: 12,
-                color: c.subColor,
-                background: c.subBg || "transparent",
-                padding: c.subBg ? "3px 10px" : 0,
-                borderRadius: c.subBg ? 99 : 0,
-                alignSelf: "flex-start",
-              }}
-            >
-              {c.sub}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* What You Should Do Today */}
       <div
         style={{
-          background: "linear-gradient(135deg, #0b3a5c 0%, #0e4a72 100%)",
-          borderRadius: 16,
+          background: "linear-gradient(135deg, #071325 0%, #0c213f 100%)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255, 255, 255, 0.12)",
+          borderRadius: 24,
           padding: "1.5rem",
           marginBottom: "1.5rem",
+          boxShadow: "0 16px 48px 0 rgba(15, 23, 42, 0.25)",
         }}
       >
         <div
@@ -325,22 +367,30 @@ export default function Dashboard({ user } = {}) {
             gap: 12,
           }}
         >
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: "#fff", margin: 0 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: "#ffffff", margin: 0 }}>
             What You Should Do Today
           </h2>
           <button
             onClick={handleExportCSV}
+            onMouseEnter={() => setIsExportHovered(true)}
+            onMouseLeave={() => setIsExportHovered(false)}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: "rgba(255,255,255,0.12)",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.25)",
-              borderRadius: 8,
-              padding: "8px 14px",
+              background: "rgba(255, 255, 255, 0.08)",
+              color: "#ffffff",
+              border: isExportHovered ? "1px solid rgba(255, 255, 255, 0.3)" : "1px solid rgba(255, 255, 255, 0.15)",
+              borderRadius: 12,
+              padding: "10px 16px",
               fontSize: 13,
+              fontWeight: 700,
               cursor: "pointer",
+              transform: isExportHovered ? "translateY(-2px)" : "translateY(0)",
+              boxShadow: isExportHovered
+                ? "0 6px 20px rgba(0, 0, 0, 0.3)"
+                : "0 2px 8px rgba(0, 0, 0, 0.1)",
+              transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
             }}
           >
             <FontAwesomeIcon icon={faDownload} style={{ width: 12, height: 12 }} />
@@ -349,7 +399,7 @@ export default function Dashboard({ user } = {}) {
         </div>
 
         {featuredRecs.length === 0 ? (
-          <p style={{ color: "rgba(255,255,255,0.7)", fontSize: 14, margin: 0 }}>
+          <p style={{ color: "#94a3b8", fontSize: 14, margin: 0, fontWeight: 500 }}>
             No recommendations right now — you're all caught up.
           </p>
         ) : (
@@ -362,53 +412,65 @@ export default function Dashboard({ user } = {}) {
           >
             {featuredRecs.map((rec) => {
               const style = PRIORITY_STYLES[rec.priority];
+              const isButtonHovered = hoveredButton === rec.inventory_id;
               return (
                 <div
                   key={rec.inventory_id}
                   style={{
-                    background: "rgba(255,255,255,0.07)",
-                    borderLeft: `4px solid ${style.border}`,
-                    borderRadius: 10,
-                    padding: "1rem",
+                    background: "linear-gradient(135deg, rgba(15, 23, 42, 0.85) 0%, rgba(11, 15, 28, 0.95) 100%)",
+                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                    borderLeft: `5px solid ${style.border}`,
+                    borderRadius: 16,
+                    padding: "1.25rem",
                     display: "flex",
                     flexDirection: "column",
-                    gap: 8,
+                    gap: 10,
+                    boxShadow: "0 8px 24px rgba(0, 0, 0, 0.3)",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span
                       style={{
                         background: style.badgeBg,
-                        color: "#fff",
+                        color: style.accent,
                         fontSize: 11,
-                        fontWeight: 700,
-                        padding: "2px 8px",
-                        borderRadius: 5,
-                        letterSpacing: 0.3,
+                        fontWeight: 800,
+                        padding: "3px 10px",
+                        borderRadius: 6,
+                        letterSpacing: 0.5,
+                        border: `1px solid ${style.border}50`,
                       }}
                     >
                       {style.label}
                     </span>
-                    <span style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, fontWeight: 600 }}>
+                    <span style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800 }}>
                       {rec.action.toUpperCase()}
                     </span>
                   </div>
-                  <div style={{ color: "#fff", fontSize: 19, fontWeight: 700 }}>{rec.product}</div>
-                  <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>{rec.detail}</div>
-                  <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
+                  <div style={{ color: "#ffffff", fontSize: 18, fontWeight: 800 }}>{rec.product}</div>
+                  <div style={{ color: "#cbd5e1", fontSize: 13.5, fontWeight: 600 }}>{rec.detail}</div>
+                  <div style={{ color: "#94a3b8", fontSize: 12.5, fontWeight: 500 }}>
                     Reason: {rec.reason}
                   </div>
                   <button
+                    onClick={() => handleActionClick(rec)}
+                    onMouseEnter={() => setHoveredButton(rec.inventory_id)}
+                    onMouseLeave={() => setHoveredButton(null)}
                     style={{
                       marginTop: 6,
-                      background: "#fff",
-                      color: style.accent,
+                      background: "#ffffff",
+                      color: "#0f172a",
                       border: "none",
-                      borderRadius: 8,
-                      padding: "10px 0",
-                      fontSize: 14,
-                      fontWeight: 600,
+                      borderRadius: 12,
+                      padding: "11px 0",
+                      fontSize: 13.5,
+                      fontWeight: 700,
                       cursor: "pointer",
+                      transform: isButtonHovered ? "translateY(-2px)" : "translateY(0)",
+                      boxShadow: isButtonHovered
+                        ? "0 6px 20px rgba(255, 255, 255, 0.25)"
+                        : "0 4px 14px rgba(0, 0, 0, 0.2)",
+                      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                     }}
                   >
                     {priorityButtonLabel[rec.priority]}
@@ -425,26 +487,23 @@ export default function Dashboard({ user } = {}) {
         style={{
           display: "grid",
           gridTemplateColumns: "1.4fr 1fr",
-          gap: 16,
+          gap: 20,
         }}
       >
         {/* Sales Trend */}
         <div
-          style={{
-            background: "#fff",
-            borderRadius: 14,
-            padding: "1.25rem",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-          }}
+          onClick={() => navigate("/forecast")}
+          onMouseEnter={() => setHoveredChartCard("trend")}
+          onMouseLeave={() => setHoveredChartCard(null)}
+          style={lightGlassCardStyle(hoveredChartCard === "trend")}
         >
           <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0f172a", marginBottom: "1rem" }}>
             Sales Trend (Last 30 Days)
           </h2>
           {sales.length === 0 ? (
-            <p style={{ color: "#aaa", fontSize: 14 }}>No sales recorded yet.</p>
+            <p style={{ color: "#64748b", fontSize: 14 }}>No sales recorded yet.</p>
           ) : (
             <svg viewBox={`0 0 ${chartW} ${chartH}`} width="100%" style={{ overflow: "visible" }}>
-              {/* Y gridlines + labels */}
               {yTicks.map((t) => {
                 const y = padT + plotH - (t / yMax) * plotH;
                 return (
@@ -454,32 +513,29 @@ export default function Dashboard({ user } = {}) {
                       x2={chartW - 10}
                       y1={y}
                       y2={y}
-                      stroke="#f1f5f9"
+                      stroke="rgba(203, 213, 225, 0.6)"
                       strokeWidth="1"
                     />
-                    <text x={padL - 8} y={y + 4} fontSize="10" fill="#94a3b8" textAnchor="end">
+                    <text x={padL - 8} y={y + 4} fontSize="10" fill="#64748b" textAnchor="end">
                       {t}
                     </text>
                   </g>
                 );
               })}
 
-              {/* Line */}
-              <path d={linePath} fill="none" stroke="#0e5a86" strokeWidth="2.5" />
+              <path d={linePath} fill="none" stroke="#ec4899" strokeWidth="2.5" />
 
-              {/* Dots */}
               {points.map((p, i) => (
-                <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#0e5a86" />
+                <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#ec4899" />
               ))}
 
-              {/* X labels */}
               {xTickIndices.map((i) => (
                 <text
                   key={i}
                   x={points[i].x}
                   y={chartH - 4}
                   fontSize="10"
-                  fill="#94a3b8"
+                  fill="#64748b"
                   textAnchor="middle"
                 >
                   {points[i].date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
@@ -491,20 +547,18 @@ export default function Dashboard({ user } = {}) {
 
         {/* Recent Transactions */}
         <div
-          style={{
-            background: "#fff",
-            borderRadius: 14,
-            padding: "1.25rem",
-            boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
-          }}
+          onClick={() => navigate("/sales")}
+          onMouseEnter={() => setHoveredChartCard("transactions")}
+          onMouseLeave={() => setHoveredChartCard(null)}
+          style={lightGlassCardStyle(hoveredChartCard === "transactions")}
         >
           <h2 style={{ fontSize: 15, fontWeight: 600, color: "#0f172a", marginBottom: "1rem" }}>
             Recent Transactions
           </h2>
           {recentTransactions.length === 0 ? (
-            <p style={{ color: "#aaa", fontSize: 14 }}>No sales recorded yet.</p>
+            <p style={{ color: "#64748b", fontSize: 14 }}>No sales recorded yet.</p>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {recentTransactions.map((t) => (
                 <div
                   key={t.id}
@@ -512,8 +566,11 @@ export default function Dashboard({ user } = {}) {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    padding: "10px 4px",
-                    borderBottom: "1px solid #f1f5f9",
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    background: "rgba(255, 255, 255, 0.7)",
+                    border: "1px solid rgba(255, 255, 255, 0.9)",
+                    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.02)",
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -522,7 +579,8 @@ export default function Dashboard({ user } = {}) {
                         width: 32,
                         height: 32,
                         borderRadius: "50%",
-                        background: "#eef2f7",
+                        background: "rgba(255, 255, 255, 0.9)",
+                        boxShadow: "0 2px 6px rgba(0, 0, 0, 0.04)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -532,13 +590,13 @@ export default function Dashboard({ user } = {}) {
                       <FontAwesomeIcon icon={faClock} style={{ width: 13, height: 13, color: "#64748b" }} />
                     </div>
                     <div>
-                      <div style={{ fontSize: 13.5, fontWeight: 500, color: "#0f172a" }}>
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "#0f172a" }}>
                         {t.products.join(", ")}
                       </div>
-                      <div style={{ fontSize: 12, color: "#94a3b8" }}>{t.timeLabel}</div>
+                      <div style={{ fontSize: 12, color: "#64748b" }}>{t.timeLabel}</div>
                     </div>
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#16a34a" }}>
                     ₱{t.amount.toLocaleString()}
                   </div>
                 </div>

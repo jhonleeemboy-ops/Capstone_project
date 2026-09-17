@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
+import { API_URL } from "../config";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faSearch,
@@ -12,7 +13,7 @@ import {
 export default function POS() {
   const [inventory, setInventory] = useState([]);
   const [search, setSearch] = useState("");
-  const [cart, setCart] = useState([]); // [{ inventory_id, product, price, quantity, stock }]
+  const [cart, setCart] = useState([]);
   const [cashReceived, setCashReceived] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -20,12 +21,12 @@ export default function POS() {
   const [receipt, setReceipt] = useState(null);
 
   useEffect(() => {
-    loadInventory();1
+    loadInventory();
   }, []);
 
   const loadInventory = () => {
     setLoading(true);
-    axios.get("http://127.0.0.1:5000/inventory")
+    axios.get(`${API_URL}/inventory`)
       .then(res => setInventory(res.data))
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
@@ -36,12 +37,11 @@ export default function POS() {
   );
 
   const addToCart = (item) => {
-    if (item.stock <= 0) return; // can't add out-of-stock items
+    if (item.stock <= 0) return;
 
     setCart(prev => {
       const existing = prev.find(c => c.inventory_id === item.id);
       if (existing) {
-        // don't let cart quantity exceed available stock
         if (existing.quantity >= item.stock) return prev;
         return prev.map(c =>
           c.inventory_id === item.id ? { ...c, quantity: c.quantity + 1 } : c
@@ -63,7 +63,7 @@ export default function POS() {
         .map(c => {
           if (c.inventory_id !== inventory_id) return c;
           const newQty = c.quantity + delta;
-          if (newQty > c.stock) return c; // cap at available stock
+          if (newQty > c.stock) return c;
           return { ...c, quantity: newQty };
         })
         .filter(c => c.quantity > 0)
@@ -103,11 +103,11 @@ export default function POS() {
       date: new Date().toISOString().slice(0, 10),
     };
 
-    axios.post("http://127.0.0.1:5000/pos-checkout", payload)
+    axios.post(`${API_URL}/pos-checkout`, payload)
       .then(res => {
         setReceipt(res.data);
         clearOrder();
-        loadInventory(); // refresh stock numbers after sale
+        loadInventory();
       })
       .catch(err => {
         setError(err.response?.data?.error || "Checkout failed. Please try again.");
@@ -115,21 +115,47 @@ export default function POS() {
       .finally(() => setProcessing(false));
   };
 
-  return (
-    <div>
-      <h1 style={{ fontSize: 26, fontWeight: 700, color: "#0f172a", marginBottom: "1.5rem" }}>
-        Point of Sale
-      </h1>
+  const lightGlassPanelStyle = {
+    background: "linear-gradient(135deg, rgba(255, 255, 255, 0.85) 0%, rgba(241, 245, 249, 0.95) 100%)",
+    backdropFilter: "blur(20px)",
+    WebkitBackdropFilter: "blur(20px)",
+    border: "1px solid rgba(255, 255, 255, 0.9)",
+    borderRadius: 24,
+    padding: "1.5rem",
+    boxShadow: "0 12px 40px 0 rgba(31, 38, 135, 0.08), 0 2px 4px 0 rgba(255, 255, 255, 0.5) inset",
+  };
 
-      <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+  return (
+    <div style={{
+      width: "100%",
+      color: "#1e293b",
+      fontFamily: "inherit",
+      padding: "1.5rem",
+      background: "#e4e7eb",
+      minHeight: "100vh",
+      boxSizing: "border-box",
+    }}>
+      {/* Header */}
+      <div style={{ marginBottom: "2rem" }}>
+        <h1
+          style={{
+            fontSize: 28,
+            fontWeight: 800,
+            color: "#0f172a",
+            marginBottom: 4,
+            letterSpacing: "-0.5px",
+          }}
+        >
+          Point of Sale
+        </h1>
+        <p style={{ color: "#64748b", fontSize: 13, margin: 0 }}>
+          Select products to build customer orders and checkout
+        </p>
+      </div>
+
+      <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
         {/* LEFT: Product search + grid */}
-        <div style={{
-          flex: 1,
-          background: "#fff",
-          borderRadius: 16,
-          padding: "1.5rem",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-        }}>
+        <div style={{ flex: 1, ...lightGlassPanelStyle }}>
           <div style={{ position: "relative", marginBottom: "1.5rem" }}>
             <FontAwesomeIcon
               icon={faSearch}
@@ -138,7 +164,7 @@ export default function POS() {
                 left: 16,
                 top: "50%",
                 transform: "translateY(-50%)",
-                color: "#94a3b8",
+                color: "#64748b",
                 width: 14,
                 height: 14,
               }}
@@ -150,20 +176,23 @@ export default function POS() {
               onChange={e => setSearch(e.target.value)}
               style={{
                 width: "100%",
-                padding: "12px 16px 12px 40px",
-                borderRadius: 10,
-                border: "1px solid #e2e8f0",
-                background: "#f8fafc",
+                padding: "12px 16px 12px 42px",
+                borderRadius: 14,
+                border: "1px solid rgba(203, 213, 225, 0.8)",
+                background: "rgba(255, 255, 255, 0.8)",
+                color: "#0f172a",
                 fontSize: 14,
                 boxSizing: "border-box",
+                outline: "none",
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
               }}
             />
           </div>
 
           {loading ? (
-            <p style={{ color: "#94a3b8", textAlign: "center", padding: "2rem" }}>Loading products...</p>
+            <p style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}>Loading products...</p>
           ) : filteredInventory.length === 0 ? (
-            <p style={{ color: "#94a3b8", textAlign: "center", padding: "2rem" }}>No products found.</p>
+            <p style={{ color: "#64748b", textAlign: "center", padding: "2rem" }}>No products found.</p>
           ) : (
             <div style={{
               display: "grid",
@@ -176,33 +205,36 @@ export default function POS() {
                 return (
                   <div
                     key={item.id}
-                    onClick={() => addToCart(item)}
+                    onClick={() => !outOfStock && addToCart(item)}
                     style={{
-                      background: "#f8fafc",
-                      borderRadius: 12,
-                      padding: "1rem",
+                      background: "rgba(255, 255, 255, 0.75)",
+                      border: "1px solid rgba(255, 255, 255, 0.9)",
+                      borderRadius: 16,
+                      padding: "1.25rem",
                       cursor: outOfStock ? "not-allowed" : "pointer",
-                      opacity: outOfStock ? 0.5 : 1,
-                      transition: "transform 0.1s",
+                      opacity: outOfStock ? 0.4 : 1,
+                      transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                       userSelect: "none",
+                      boxShadow: "0 4px 16px rgba(0, 0, 0, 0.04)",
                     }}
-                    onMouseDown={e => { if (!outOfStock) e.currentTarget.style.transform = "scale(0.97)"; }}
-                    onMouseUp={e => { e.currentTarget.style.transform = "scale(1)"; }}
+                    onMouseEnter={e => { if (!outOfStock) { e.currentTarget.style.transform = "translateY(-3px)"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(14, 116, 144, 0.12)"; e.currentTarget.style.border = "1px solid rgba(14, 116, 144, 0.3)"; }}}
+                    onMouseLeave={e => { if (!outOfStock) { e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "0 4px 16px rgba(0, 0, 0, 0.04)"; e.currentTarget.style.border = "1px solid rgba(255, 255, 255, 0.9)"; }}}
                   >
-                    <p style={{ fontSize: 14, fontWeight: 600, color: "#0f172a", margin: "0 0 6px" }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: "#1e293b", margin: "0 0 6px" }}>
                       {item.product}
                     </p>
-                    <p style={{ fontSize: 18, fontWeight: 700, color: "#0369a1", margin: "0 0 10px" }}>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: "#0284c7", margin: "0 0 10px" }}>
                       ₱{Number(item.price).toFixed(0)}
                     </p>
                     <span style={{
                       display: "inline-block",
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: "3px 10px",
-                      borderRadius: 99,
-                      background: outOfStock ? "#fee2e2" : lowStock ? "#fee2e2" : "#dcfce7",
-                      color: outOfStock ? "#ef4444" : lowStock ? "#ef4444" : "#16a34a",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      padding: "4px 10px",
+                      borderRadius: 6,
+                      background: outOfStock ? "rgba(239, 68, 68, 0.1)" : lowStock ? "rgba(249, 115, 22, 0.1)" : "rgba(34, 197, 94, 0.1)",
+                      color: outOfStock ? "#ef4444" : lowStock ? "#ea580c" : "#16a34a",
+                      border: `1px solid ${outOfStock ? "rgba(239, 68, 68, 0.25)" : lowStock ? "rgba(249, 115, 22, 0.25)" : "rgba(34, 197, 94, 0.25)"}`,
                     }}>
                       {outOfStock ? "Out of stock" : `${item.stock} in stock`}
                     </span>
@@ -214,47 +246,49 @@ export default function POS() {
         </div>
 
         {/* RIGHT: Current order panel */}
-        <div style={{
-          width: 340,
-          background: "#fff",
-          borderRadius: 16,
-          padding: "1.5rem",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
-          position: "sticky",
-          top: 20,
-        }}>
+        <div style={{ width: 380, position: "sticky", top: 20, ...lightGlassPanelStyle }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "#0f172a", marginBottom: "1rem" }}>
             Current Order
           </h2>
 
           {cart.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "2.5rem 0", color: "#94a3b8" }}>
-              <p style={{ margin: "0 0 4px", fontSize: 14 }}>No items in cart</p>
-              <p style={{ margin: 0, fontSize: 13 }}>Tap a product to add</p>
+            <div style={{ textAlign: "center", padding: "3rem 0", color: "#64748b" }}>
+              <p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 500 }}>No items in cart</p>
+              <p style={{ margin: 0, fontSize: 13, opacity: 0.8 }}>Tap a product to add</p>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: "1rem", maxHeight: 320, overflowY: "auto" }}>
               {cart.map(c => (
-                <div key={c.inventory_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 13 }}>
+                <div key={c.inventory_id} style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: 13,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "rgba(255, 255, 255, 0.7)",
+                  border: "1px solid rgba(255, 255, 255, 0.9)",
+                  boxShadow: "0 2px 8px rgba(0, 0, 0, 0.02)",
+                }}>
                   <div style={{ flex: 1 }}>
                     <p style={{ margin: 0, fontWeight: 600, color: "#0f172a" }}>{c.product}</p>
-                    <p style={{ margin: 0, color: "#64748b" }}>₱{c.price.toFixed(2)} each</p>
+                    <p style={{ margin: 0, color: "#64748b", fontSize: 11 }}>₱{c.price.toFixed(2)} each</p>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <button onClick={() => updateQuantity(c.inventory_id, -1)} style={qtyBtnStyle}>
-                      <FontAwesomeIcon icon={faMinus} style={{ fontSize: 10, width: 10, height: 10, color: "#0f172a" }} />
+                      <FontAwesomeIcon icon={faMinus} style={{ fontSize: 10, color: "#0f172a" }} />
                     </button>
-                    <span style={{ minWidth: 18, textAlign: "center" }}>{c.quantity}</span>
+                    <span style={{ minWidth: 20, textAlign: "center", fontWeight: 600, color: "#0f172a" }}>{c.quantity}</span>
                     <button onClick={() => updateQuantity(c.inventory_id, 1)} style={qtyBtnStyle}>
-                      <FontAwesomeIcon icon={faPlus} style={{ fontSize: 10, width: 10, height: 10, color: "#0f172a" }} />
+                      <FontAwesomeIcon icon={faPlus} style={{ fontSize: 10, color: "#0f172a" }} />
                     </button>
                   </div>
-                  <p style={{ margin: "0 0 0 10px", fontWeight: 700, minWidth: 55, textAlign: "right" }}>
+                  <p style={{ margin: "0 0 0 12px", fontWeight: 700, minWidth: 55, textAlign: "right", color: "#16a34a" }}>
                     ₱{(c.price * c.quantity).toFixed(0)}
                   </p>
                   <button
                     onClick={() => removeFromCart(c.inventory_id)}
-                    style={{ marginLeft: 6, border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 13 }}
+                    style={{ marginLeft: 8, border: "none", background: "none", color: "#ef4444", cursor: "pointer", fontSize: 13, padding: 4 }}
                   >
                     <FontAwesomeIcon icon={faTimes} style={{ width: 12, height: 12, color: "#ef4444" }} />
                   </button>
@@ -263,13 +297,13 @@ export default function POS() {
             </div>
           )}
 
-          <div style={{ borderTop: "1px solid #f1f5f9", paddingTop: "1rem", marginTop: "0.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 700, marginBottom: "1rem" }}>
+          <div style={{ borderTop: "1px solid rgba(203, 213, 225, 0.8)", paddingTop: "1rem", marginTop: "0.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 16, fontWeight: 700, marginBottom: "1rem", color: "#0f172a" }}>
               <span>Total</span>
               <span>₱{total.toFixed(2)}</span>
             </div>
 
-            <label style={{ fontSize: 13, color: "#64748b", display: "block", marginBottom: 6 }}>
+            <label style={{ fontSize: 13, color: "#64748b", display: "block", marginBottom: 6, fontWeight: 600 }}>
               Cash Received
             </label>
             <input
@@ -279,19 +313,21 @@ export default function POS() {
               onChange={e => setCashReceived(e.target.value)}
               style={{
                 width: "100%",
-                padding: "10px 14px",
-                borderRadius: 10,
-                border: "1px solid #e2e8f0",
-                background: "#f8fafc",
+                padding: "12px 14px",
+                borderRadius: 12,
+                border: "1px solid rgba(203, 213, 225, 0.8)",
+                background: "rgba(255, 255, 255, 0.8)",
                 color: "#0f172a",
                 fontSize: 14,
                 marginBottom: "0.75rem",
                 boxSizing: "border-box",
+                outline: "none",
+                boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)",
               }}
             />
 
             {cashReceived && Number(cashReceived) >= total && total > 0 && (
-              <p style={{ fontSize: 13, color: "#16a34a", margin: "0 0 0.75rem" }}>
+              <p style={{ fontSize: 13, color: "#16a34a", margin: "0 0 0.75rem", fontWeight: 600 }}>
                 Change: ₱{change.toFixed(2)}
               </p>
             )}
@@ -300,19 +336,20 @@ export default function POS() {
               <p style={{ fontSize: 13, color: "#ef4444", margin: "0 0 0.75rem" }}>{error}</p>
             )}
 
-            <div style={{ display: "flex", gap: 10 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: "0.5rem" }}>
               <button
                 onClick={clearOrder}
                 disabled={processing}
                 style={{
                   flex: 1,
-                  padding: "10px 0",
-                  borderRadius: 10,
-                  border: "1px solid #ef4444",
-                  background: "#fff",
+                  padding: "11px 0",
+                  borderRadius: 12,
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  background: "rgba(239, 68, 68, 0.08)",
                   color: "#ef4444",
                   fontWeight: 600,
                   cursor: "pointer",
+                  transition: "all 0.2s",
                 }}
               >
                 Cancel
@@ -322,13 +359,15 @@ export default function POS() {
                 disabled={processing || cart.length === 0}
                 style={{
                   flex: 1,
-                  padding: "10px 0",
-                  borderRadius: 10,
+                  padding: "11px 0",
+                  borderRadius: 12,
                   border: "none",
-                  background: processing || cart.length === 0 ? "#94a3b8" : "#0f172a",
+                  background: processing || cart.length === 0 ? "#cbd5e1" : "#0f172a",
                   color: "#fff",
                   fontWeight: 600,
                   cursor: processing || cart.length === 0 ? "not-allowed" : "pointer",
+                  boxShadow: processing || cart.length === 0 ? "none" : "0 4px 16px rgba(15, 23, 42, 0.25)",
+                  transition: "all 0.2s",
                 }}
               >
                 {processing ? "Processing..." : "Complete Sale"}
@@ -338,28 +377,37 @@ export default function POS() {
         </div>
       </div>
 
-      {/* Simple receipt confirmation modal */}
+      {/* Receipt confirmation modal */}
       {receipt && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(15,23,42,0.5)",
+          position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.4)",
+          backdropFilter: "blur(8px)",
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50,
         }}>
-          <div style={{ background: "#fff", borderRadius: 16, padding: "1.75rem", width: 320 }}>
-            <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{
+            background: "linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(241, 245, 249, 0.98) 100%)",
+            backdropFilter: "blur(20px)",
+            border: "1px solid rgba(255, 255, 255, 0.9)",
+            borderRadius: 24,
+            padding: "1.75rem",
+            width: 340,
+            boxShadow: "0 20px 50px rgba(31, 38, 135, 0.25)",
+          }}>
+            <h3 style={{ marginTop: 0, fontSize: 18, fontWeight: 700, display: "flex", alignItems: "center", gap: 8, color: "#0f172a" }}>
               Sale Complete
               <FontAwesomeIcon icon={faCheckCircle} style={{ color: "#16a34a", width: 16, height: 16 }} />
             </h3>
             {receipt.items.map(it => (
-              <div key={it.inventory_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+              <div key={it.inventory_id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6, color: "#64748b" }}>
                 <span>{it.product} × {it.quantity}</span>
                 <span>₱{it.amount.toFixed(2)}</span>
               </div>
             ))}
-            <div style={{ borderTop: "1px solid #f1f5f9", marginTop: 10, paddingTop: 10, fontSize: 14 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+            <div style={{ borderTop: "1px solid rgba(203, 213, 225, 0.8)", marginTop: 12, paddingTop: 12, fontSize: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#0f172a", marginBottom: 4 }}>
                 <span>Total</span><span>₱{receipt.total_amount.toFixed(2)}</span>
               </div>
-              <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", color: "#64748b", marginBottom: 4 }}>
                 <span>Cash</span><span>₱{receipt.cash_received.toFixed(2)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", color: "#16a34a", fontWeight: 600 }}>
@@ -368,7 +416,18 @@ export default function POS() {
             </div>
             <button
               onClick={() => setReceipt(null)}
-              style={{ marginTop: 16, width: "100%", padding: "10px 0", borderRadius: 10, border: "none", background: "#0f172a", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+              style={{
+                marginTop: 20,
+                width: "100%",
+                padding: "12px 0",
+                borderRadius: 12,
+                border: "none",
+                background: "#0f172a",
+                color: "#fff",
+                fontWeight: 600,
+                cursor: "pointer",
+                boxShadow: "0 4px 16px rgba(15, 23, 42, 0.25)",
+              }}
             >
               New Sale
             </button>
@@ -380,15 +439,17 @@ export default function POS() {
 }
 
 const qtyBtnStyle = {
-  width: 22,
-  height: 22,
-  borderRadius: 6,
-  border: "1px solid #e2e8f0",
-  background: "#fff",
+  width: 26,
+  height: 26,
+  borderRadius: 8,
+  border: "1px solid rgba(203, 213, 225, 0.9)",
+  background: "rgba(255, 255, 255, 0.9)",
   cursor: "pointer",
-  fontSize: 13,
+  fontSize: 12,
   lineHeight: 1,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  color: "#0f172a",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
 };
